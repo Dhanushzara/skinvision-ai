@@ -1,0 +1,208 @@
+SkinVision YOLO — Melanoma Detection Using YOLO + Segmentation Refinement (Flask App)
+Title:
+SkinVision YOLO – Melanoma Detection with YOLO-based Lesion Localization, Segmentation Refinement, Dermatologist Finder, and Skin Self-Care Assistant
+
+Instruction:
+Build a full Flask project that detects melanoma from skin images using YOLO for detection and U-Net (or Mask-RCNN) for segmentation refinement.
+The system must include:
+
+🔥 1. CORE TECHNICAL FEATURES
+A. YOLO Detection
+Use YOLOv5 or YOLOv8
+
+Detect lesion area
+
+Extract bounding box
+
+Files:
+/models/yolo_detector.py
+
+B. Segmentation Refinement
+Use U-Net / DeepLabV3
+
+Refine lesion boundaries
+
+Produce a segmentation mask
+
+Output overlay on original image
+
+Files:
+/models/segmentation.py
+
+C. Classification
+Classify lesion as:
+
+Melanoma
+
+Not Melanoma
+
+Provide confidence score
+
+If melanoma → show alert
+
+If NOT melanoma → show self-care tips
+
+Files:
+/models/classifier.py
+
+⚙️ 2. FLASK WEB APPLICATION
+Flask folders required:
+
+app.py
+/templates/index.html
+/templates/result.html
+/templates/dermatologists.html
+/static/style.css
+UI Features:
+Upload skin image
+
+Display YOLO bounding boxes
+
+Display segmentation mask
+
+Show classification result
+
+Show confidence score
+
+Button to find dermatologists nearby
+
+Button to download full diagnosis report
+
+🗺️ 3. “Find Nearby Dermatologist” FEATURE (MANDATORY)
+Add a separate page:
+/find-dermatologist
+
+This feature will:
+
+Ask user for location input (city/pincode)
+
+Redirect to Google Maps search query:
+"Dermatologists near <location>"
+
+Display clickable map link
+
+Show:
+
+Clinic name
+
+Contact
+
+Address
+(Use open public data OR static sample data. Not medical advice.)
+
+No personal location tracking → Only user-entered location.
+
+🌿 4. SELF-CARE FEATURES
+Show these ONLY when result = “Not Melanoma”
+
+A. Sun Protection Guidance (Very Important)
+SPF usage
+
+Avoid peak UV hours
+
+Protective clothing
+
+B. Healthy Skin Routine Tips
+Hydration
+
+Moisturizing
+
+Avoid harsh products
+
+C. UV Index Awareness Feature
+Fetch UV index via API (open API like Open-Meteo)
+
+Display: Low / Moderate / High / Extreme
+
+Show precautions
+
+D. Lifestyle Awareness Tips
+Diet
+
+Sleep
+
+Avoid smoking/alcohol
+
+E. Monthly Self-Check Reminder
+Simple calendar reminder message
+
+Steps for self-examination
+
+Include these tips inside result.html when classification = non-melanoma.
+
+📁 5. PROJECT STRUCTURE (MANDATORY)
+app.py
+requirements.txt
+
+/models/yolo_detector.py
+/models/segmentation.py
+/models/classifier.py
+
+/utils/preprocessing.py
+/utils/postprocessing.py
+/utils/report_generator.py
+/utils/uv_index_api.py
+
+/templates/index.html
+/templates/result.html
+/templates/dermatologists.html
+
+/static/style.css
+/uploads/
+/outputs/
+📦 6. requirements.txt
+Add:
+
+flask
+torch
+opencv-python
+numpy
+pillow
+matplotlib
+ultralytics
+scikit-learn
+joblib
+requests
+reportlab
+🎯 7. EXPECTED WORKING SYSTEM
+When user uploads an image:
+
+Preprocessing
+
+YOLO localization
+
+Segmentation refinement
+
+Classification
+
+Show results:
+
+Original image
+
+YOLO detection
+
+Segmentation mask
+
+Melanoma probability
+
+IF MELANOMA → show alert + dermatologist finder
+
+IF NOT MELANOMA → show:
+
+Sun protection
+
+Healthy skin routine
+
+UV index awareness
+
+Lifestyle awareness
+
+Monthly self-check reminder
+
+Provide a downloadable PDF diagnosis report
+
+⛔ IMPORTANT
+✔ No Streamlit
+✔ Only Flask
+✔ Everything must work in Replit
+✔ No medical advice — only navigation & general awareness
