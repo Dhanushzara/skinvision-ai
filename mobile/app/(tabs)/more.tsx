@@ -209,8 +209,46 @@ export default function MoreScreen() {
         </TouchableOpacity>
       ))}
 
+      {/* ── Research Roadmap ── */}
+      <View style={{ marginHorizontal: 16, marginTop: 14 }}>
+        <Text style={m.sectionHeading}>Research Roadmap</Text>
+        <Text style={[m.cardSub, { marginBottom: 10 }]}>Current capabilities & planned future features</Text>
+      </View>
+      {([
+        { num: '01', status: 'live',    icon: 'scan',         title: 'Multi-Class Detection',     desc: 'Melanoma, skin lesions, acne & healthy skin — EfficientNetB3 model', color: '#10B981' },
+        { num: '02', status: 'live',    icon: 'bar-chart',    title: 'Risk Score Prediction',     desc: 'Low/Medium/High/Critical risk scoring with ABCDE criteria',            color: '#10B981' },
+        { num: '03', status: 'live',    icon: 'phone-portrait',title: 'Mobile App Integration',  desc: 'Android/iOS app with camera, history & TeleDerm sharing',              color: '#10B981' },
+        { num: '04', status: 'live',    icon: 'time',         title: 'Patient History Tracking',  desc: 'Lesion changes tracked over time — early progression detection',        color: '#10B981' },
+        { num: '05', status: 'live',    icon: 'videocam',     title: 'Tele-Dermatology',          desc: 'Secure report sharing with dermatologists via encrypted links',         color: '#10B981' },
+        { num: '06', status: 'planned', icon: 'layers',       title: 'Explainable AI (XAI)',      desc: 'Grad-CAM heatmaps explaining why the model made each decision',        color: '#F59E0B' },
+        { num: '07', status: 'planned', icon: 'cloud',        title: 'Cloud & Hospital System',   desc: 'FHIR-compliant integration with hospital systems & rural clinics',      color: '#F59E0B' },
+      ] as const).map((item, i) => (
+        <View key={i} style={m.roadmapCard}>
+          <LinearGradient
+            colors={item.status === 'live' ? ['#10B981', '#059669'] : ['#F59E0B', '#D97706']}
+            style={m.roadmapNum}
+          >
+            <Text style={m.roadmapNumTxt}>{item.num}</Text>
+          </LinearGradient>
+          <View style={m.roadmapIconWrap}>
+            <Ionicons name={item.icon as any} size={17} color={item.color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 3 }}>
+              <Text style={m.roadmapTitle}>{item.title}</Text>
+              <View style={[m.statusBadge, { backgroundColor: item.status === 'live' ? '#DCFCE7' : '#FEF3C7' }]}>
+                <Text style={[m.statusTxt, { color: item.status === 'live' ? '#15803D' : '#92400E' }]}>
+                  {item.status === 'live' ? '✓ Live' : '⏳ Soon'}
+                </Text>
+              </View>
+            </View>
+            <Text style={m.roadmapDesc}>{item.desc}</Text>
+          </View>
+        </View>
+      ))}
+
       {/* ── Disclaimer ── */}
-      <View style={[m.card, { backgroundColor: '#FFF7ED', marginBottom: 32 }]}>
+      <View style={[m.card, { backgroundColor: '#FFF7ED', marginTop: 14, marginBottom: 32 }]}>
         <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
           <Ionicons name="warning" size={16} color="#D97706" style={{ marginTop: 1 }} />
           <Text style={m.disclaimerTxt}>
@@ -261,4 +299,13 @@ const m = StyleSheet.create({
   tipTxt:         { flex: 1, fontSize: 13, color: '#475569', lineHeight: 19 },
 
   disclaimerTxt:  { flex: 1, fontSize: 12, color: '#92400E', lineHeight: 18 },
+
+  roadmapCard:    { marginHorizontal: 16, marginTop: 10, backgroundColor: 'white', borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1 },
+  roadmapNum:     { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  roadmapNumTxt:  { fontSize: 10, fontWeight: '900', color: 'white' },
+  roadmapIconWrap:{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  roadmapTitle:   { fontSize: 13, fontWeight: '700', color: '#0F172A' },
+  roadmapDesc:    { fontSize: 12, color: '#64748B', lineHeight: 17 },
+  statusBadge:    { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  statusTxt:      { fontSize: 10, fontWeight: '700' },
 });
