@@ -1,6 +1,25 @@
+# Web app
 node_modules
 dist
 .DS_Store
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+backend/skinvision.db
+backend/models/
+
+# Mobile
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+
+# Uploads (user images — not for source control)
+uploads/
+
+# Env files with local IPs / secrets
+mobile/.env

@@ -192,21 +192,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  app.get(api.scans.get.path, async (req, res) => {
-    const scan = await storage.getScan(Number(req.params.id));
-    if (!scan) return res.status(404).json({ message: 'Scan not found' });
-    res.json(scan);
-  });
-
+  // ── Specific routes FIRST (before /:id to avoid shadowing) ──
   app.get(api.scans.list.path, async (req, res) => {
     const scans = await storage.getScans();
     res.json(scans);
   });
 
-  // ── Patient History (Feature 4) ──
+  // ── Patient History (Feature 4) — must be before /api/scans/:id ──
   app.get(api.scans.history.path, async (req, res) => {
     const scans = await storage.getScansByPatient(req.params.patientId);
     res.json(scans);
+  });
+
+  app.get(api.scans.get.path, async (req, res) => {
+    const scan = await storage.getScan(Number(req.params.id));
+    if (!scan) return res.status(404).json({ message: 'Scan not found' });
+    res.json(scan);
   });
 
   // ── Update Scan ──
