@@ -29,10 +29,10 @@ from model.skin_validator import is_real_skin
 IMG_SIZE = (224, 224)
 CLASS_NAMES = ["mole", "non_mole", "pimple", "healthy"]
 UPLOADS_DIR = Path("uploads")
-UPLOADS_DIR.mkdir(exist_ok=True)  # must exist before StaticFiles mount
+UPLOADS_DIR.mkdir(exist_ok=True)
 DB_PATH = "skinvision.db"
 
-MODEL: Any = None  # Loaded lazily at startup
+MODEL: Any = None
 
 CLASS_INFO = {
     "mole": {
@@ -125,6 +125,17 @@ def _init_db() -> None:
             created_at  TEXT
         )
     """)
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS consultations (
+            id           TEXT PRIMARY KEY,
+            scan_id      TEXT NOT NULL,
+            doctor_email TEXT,
+            message      TEXT,
+            share_token  TEXT UNIQUE,
+            status       TEXT DEFAULT 'pending',
+            created_at   TEXT
+        )
+    """)
     con.commit()
     con.close()
 
@@ -190,7 +201,6 @@ def _run_inference(image_bytes: bytes) -> dict:
         all_probs = {CLASS_NAMES[i]: round(float(probs[i]) * 100, 1) for i in range(4)}
         seed = int(hashlib.md5(image_bytes[:512]).hexdigest(), 16) % (2 ** 32)
     else:
-        # Deterministic demo mode — same image → same result
         h = int(hashlib.md5(image_bytes[:1024]).hexdigest(), 16)
         seed = h % (2 ** 32)
         idx = h % 4
@@ -228,6 +238,22 @@ def _run_inference(image_bytes: bytes) -> dict:
     }
 
 
+def _get_scan_row(scan_id: str) -> dict | None:
+    con = sqlite3.connect(DB_PATH)
+    row = con.execute("SELECT * FROM scans WHERE id=?", (scan_id,)).fetchone()
+    con.close()
+    if not row:
+        return None
+    cols = ["id", "image_url", "result", "confidence", "class_name",
+            "risk_level", "risk_score", "skin_ratio", "abcde_scores",
+            "explanation", "body_location", "all_probabilities", "created_at"]
+    s = dict(zip(cols, row))
+    s["abcde_scores"] = json.loads(s["abcde_scores"] or "{}")
+    s["all_probabilities"] = json.loads(s["all_probabilities"] or "{}")
+    s["label"] = s["result"]
+    return s
+
+
 # ── Routes ───────────────────────────────────────────────────────────────────
 @app.post("/api/analyze")
 async def analyze_skin(
@@ -239,7 +265,6 @@ async def analyze_skin(
     if len(image_bytes) > 10 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Image too large. Maximum size is 10 MB.")
 
-    # Step 1 — skin validation
     validation = is_real_skin(image_bytes)
     if not validation["is_valid"]:
         raise HTTPException(
@@ -251,7 +276,6 @@ async def analyze_skin(
             },
         )
 
-    # Step 2 — save image
     scan_id = str(uuid.uuid4())
     ext = (file.filename or "scan.jpg").rsplit(".", 1)[-1].lower()
     if ext not in {"jpg", "jpeg", "png", "webp"}:
@@ -259,10 +283,8 @@ async def analyze_skin(
     img_path = UPLOADS_DIR / f"{scan_id}.{ext}"
     img_path.write_bytes(image_bytes)
 
-    # Step 3 — ML inference
     result = _run_inference(image_bytes)
 
-    # Step 4 — persist
     created_at = datetime.utcnow().isoformat()
     con = sqlite3.connect(DB_PATH)
     con.execute(
@@ -298,17 +320,14 @@ async def list_scans():
         "SELECT * FROM scans ORDER BY created_at DESC LIMIT 100"
     ).fetchall()
     con.close()
-    cols = [
-        "id", "image_url", "result", "confidence", "class_name",
-        "risk_level", "risk_score", "skin_ratio", "abcde_scores",
-        "explanation", "body_location", "all_probabilities", "created_at",
-    ]
+    cols = ["id", "image_url", "result", "confidence", "class_name",
+            "risk_level", "risk_score", "skin_ratio", "abcde_scores",
+            "explanation", "body_location", "all_probabilities", "created_at"]
     scans = []
     for row in rows:
         s = dict(zip(cols, row))
         s["abcde_scores"] = json.loads(s["abcde_scores"] or "{}")
         s["all_probabilities"] = json.loads(s["all_probabilities"] or "{}")
-        # Alias for mobile compatibility
         s["label"] = s["result"]
         scans.append(s)
     return scans
@@ -316,20 +335,9 @@ async def list_scans():
 
 @app.get("/api/scans/{scan_id}")
 async def get_scan(scan_id: str):
-    con = sqlite3.connect(DB_PATH)
-    row = con.execute("SELECT * FROM scans WHERE id=?", (scan_id,)).fetchone()
-    con.close()
-    if not row:
+    s = _get_scan_row(scan_id)
+    if not s:
         raise HTTPException(status_code=404, detail="Scan not found")
-    cols = [
-        "id", "image_url", "result", "confidence", "class_name",
-        "risk_level", "risk_score", "skin_ratio", "abcde_scores",
-        "explanation", "body_location", "all_probabilities", "created_at",
-    ]
-    s = dict(zip(cols, row))
-    s["abcde_scores"] = json.loads(s["abcde_scores"] or "{}")
-    s["all_probabilities"] = json.loads(s["all_probabilities"] or "{}")
-    s["label"] = s["result"]
     return s
 
 
@@ -340,11 +348,62 @@ async def delete_scan(scan_id: str):
     if row:
         con.execute("DELETE FROM scans WHERE id=?", (scan_id,))
         con.commit()
-        # Remove image file
         img_file = Path("." + row[0])
         if img_file.exists():
             img_file.unlink()
     con.close()
+
+
+# ── Consultation / TeleDerm ──────────────────────────────────────────────────
+@app.post("/api/consultations")
+async def create_consultation(
+    scan_id: str = Form(...),
+    doctor_email: str = Form(default=""),
+    message: str = Form(default=""),
+):
+    s = _get_scan_row(scan_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    consultation_id = str(uuid.uuid4())
+    share_token = hashlib.sha256(f"{scan_id}{consultation_id}".encode()).hexdigest()[:32]
+    created_at = datetime.utcnow().isoformat()
+
+    con = sqlite3.connect(DB_PATH)
+    con.execute(
+        "INSERT INTO consultations VALUES (?,?,?,?,?,?,?)",
+        (consultation_id, scan_id, doctor_email or None,
+         message or None, share_token, "pending", created_at),
+    )
+    con.commit()
+    con.close()
+
+    return {
+        "id": consultation_id,
+        "share_token": share_token,
+        "status": "pending",
+        "created_at": created_at,
+    }
+
+
+@app.get("/api/shared/{share_token}")
+async def get_shared_report(share_token: str):
+    con = sqlite3.connect(DB_PATH)
+    row = con.execute(
+        "SELECT * FROM consultations WHERE share_token=?", (share_token,)
+    ).fetchone()
+    con.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Shared report not found")
+
+    cols = ["id", "scan_id", "doctor_email", "message", "share_token", "status", "created_at"]
+    consultation = dict(zip(cols, row))
+
+    scan = _get_scan_row(consultation["scan_id"])
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    return {"scan": scan, "consultation": consultation}
 
 
 @app.get("/health")

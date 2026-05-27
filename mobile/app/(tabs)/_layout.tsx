@@ -16,7 +16,7 @@ export default function TabsLayout() {
           paddingTop: 8,
           height: 65,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
       }}
     >
       <Tabs.Screen
@@ -38,13 +38,27 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="telederm"
         options={{
-          title: 'About',
+          title: 'TeleDerm',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="information-circle" size={size} color={color} />
+            <Ionicons name="videocam" size={size} color={color} />
           ),
         }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: 'Care',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="leaf" size={size} color={color} />
+          ),
+        }}
+      />
+      {/* Profile/About screen — still accessible but no tab bar entry */}
+      <Tabs.Screen
+        name="profile"
+        options={{ href: null }}
       />
     </Tabs>
   );
