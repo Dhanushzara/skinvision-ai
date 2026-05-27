@@ -7,7 +7,7 @@ import {
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { saveUser } from '../utils/auth';
+import { loginUser, saveUser } from '../utils/auth';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -38,19 +38,21 @@ export default function LoginScreen() {
     ]).start();
   }, []);
 
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       Alert.alert('Missing Fields', 'Please enter your email and password to continue.');
       return;
     }
+    setLoginError(null);
     setLoading(true);
-    // Simulate network call
-    await new Promise(r => setTimeout(r, 1100));
-    const name = email.split('@')[0].replace(/[._]/g, ' ').split(' ').map(
-      w => w.charAt(0).toUpperCase() + w.slice(1)
-    ).join(' ');
-    await saveUser({ name, email: email.toLowerCase().trim(), provider: 'email' });
+    const result = await loginUser(email, password);
     setLoading(false);
+    if (!result.success) {
+      setLoginError(result.error ?? 'Login failed.');
+      return;
+    }
     router.replace('/(tabs)');
   };
 
@@ -143,6 +145,14 @@ export default function LoginScreen() {
                 <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color="#94A3B8" />
               </TouchableOpacity>
             </View>
+
+            {/* Error message */}
+            {loginError ? (
+              <View style={s.errorBox}>
+                <Ionicons name="alert-circle" size={16} color="#EF4444" />
+                <Text style={s.errorTxt}>{loginError}</Text>
+              </View>
+            ) : null}
 
             {/* Forgot */}
             <TouchableOpacity
@@ -253,4 +263,7 @@ const s = StyleSheet.create({
   signUpLink:   { fontSize: 13, fontWeight: '700', color: '#2563EB' },
 
   footer:       { fontSize: 11, color: '#475569', textAlign: 'center', marginTop: 20, lineHeight: 16, opacity: 0.7 },
+
+  errorBox:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
+  errorTxt:     { flex: 1, fontSize: 13, color: '#DC2626', lineHeight: 18 },
 });

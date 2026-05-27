@@ -55,10 +55,14 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* Profile/About screen — still accessible but no tab bar entry */}
       <Tabs.Screen
         name="profile"
-        options={{ href: null }}
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-circle" size={size} color={color} />
+          ),
+        }}
       />
     </Tabs>
   );

@@ -7,7 +7,7 @@ import {
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { saveUser } from '../utils/auth';
+import { registerUser, saveUser } from '../utils/auth';
 
 const { height: H } = Dimensions.get('window');
 
@@ -34,7 +34,10 @@ export default function RegisterScreen() {
     ]).start();
   }, []);
 
+  const [regError, setRegError] = useState<string | null>(null);
+
   const handleRegister = async () => {
+    setRegError(null);
     if (!name.trim() || !email.trim() || !password.trim()) {
       Alert.alert('Missing Fields', 'Please fill in all required fields.');
       return;
@@ -52,9 +55,12 @@ export default function RegisterScreen() {
       return;
     }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 1200));
-    await saveUser({ name: name.trim(), email: email.toLowerCase().trim(), provider: 'email' });
+    const result = await registerUser(name, email, password);
     setLoading(false);
+    if (!result.success) {
+      setRegError(result.error ?? 'Registration failed.');
+      return;
+    }
     router.replace('/(tabs)');
   };
 
@@ -181,6 +187,14 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Error */}
+            {regError ? (
+              <View style={s.errorBox}>
+                <Ionicons name="alert-circle" size={16} color="#EF4444" />
+                <Text style={s.errorTxt}>{regError}</Text>
+              </View>
+            ) : null}
+
             {/* Terms */}
             <TouchableOpacity
               style={s.termsRow}
@@ -295,4 +309,7 @@ const s = StyleSheet.create({
   signUpRow:     { flexDirection: 'row', justifyContent: 'center' },
   signUpQ:       { fontSize: 13, color: '#64748B' },
   signUpLink:    { fontSize: 13, fontWeight: '700', color: '#7C3AED' },
+
+  errorBox:      { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
+  errorTxt:      { flex: 1, fontSize: 13, color: '#DC2626', lineHeight: 18 },
 });

@@ -15,9 +15,11 @@
         "NSPhotoLibraryAddUsageDescription": "SkinVision AI needs to save scan results."
       }
     },
+    "icon": "./assets/icon.png",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#2563EB"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0F172A"
       },
       "permissions": [
         "android.permission.CAMERA",

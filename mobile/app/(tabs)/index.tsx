@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  Alert, ActivityIndicator, StyleSheet, Animated, Dimensions,
+  Alert, ActivityIndicator, StyleSheet, Animated, Dimensions, Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -18,6 +18,21 @@ const { width: W } = Dimensions.get('window');
 const BODY_LOCATIONS = [
   'Face', 'Neck', 'Chest', 'Back',
   'Left Arm', 'Right Arm', 'Abdomen', 'Left Leg', 'Right Leg', 'Hand', 'Foot',
+];
+
+const BODY_PARTS = [
+  { key: 'Face',      icon: 'happy-outline' as const,        label: 'Face',      hint: 'Forehead, cheeks, nose, chin' },
+  { key: 'Scalp',     icon: 'person-outline' as const,       label: 'Scalp',     hint: 'Top of head, hairline' },
+  { key: 'Neck',      icon: 'body-outline' as const,         label: 'Neck',      hint: 'Front & sides of neck' },
+  { key: 'Chest',     icon: 'heart-outline' as const,        label: 'Chest',     hint: 'Front torso, breast area' },
+  { key: 'Back',      icon: 'arrow-back-outline' as const,   label: 'Back',      hint: 'Upper & lower back' },
+  { key: 'Left Arm',  icon: 'hand-left-outline' as const,    label: 'Left Arm',  hint: 'Shoulder to wrist' },
+  { key: 'Right Arm', icon: 'hand-right-outline' as const,   label: 'Right Arm', hint: 'Shoulder to wrist' },
+  { key: 'Hand',      icon: 'hand-left-outline' as const,    label: 'Hand',      hint: 'Palm, fingers, back of hand' },
+  { key: 'Abdomen',   icon: 'fitness-outline' as const,      label: 'Abdomen',   hint: 'Stomach & sides' },
+  { key: 'Left Leg',  icon: 'walk-outline' as const,         label: 'Left Leg',  hint: 'Thigh, knee, shin, calf' },
+  { key: 'Right Leg', icon: 'walk-outline' as const,         label: 'Right Leg', hint: 'Thigh, knee, shin, calf' },
+  { key: 'Foot',      icon: 'footsteps-outline' as const,    label: 'Foot',      hint: 'Sole, toes, ankle' },
 ];
 
 const DETECTIONS = [
@@ -90,6 +105,7 @@ export default function HomeScreen() {
   const [imageFile, setImageFile] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [bodyLocation, setBodyLocation] = useState('');
   const [userName, setUserName] = useState('');
+  const [showBodyModal, setShowBodyModal] = useState(false);
   const btnScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -137,7 +153,7 @@ export default function HomeScreen() {
     onError: (e) => Alert.alert('Analysis Failed', e.message),
   });
 
-  const pickImage = async (cam: boolean) => {
+  const pickImage = async (cam: boolean, presetPart?: string) => {
     if (cam) {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') { Alert.alert('Permission Required', 'Camera access needed.'); return; }
@@ -151,7 +167,17 @@ export default function HomeScreen() {
     if (!res.canceled && res.assets[0]) {
       setSelectedImage(res.assets[0].uri);
       setImageFile(res.assets[0]);
+      if (presetPart) setBodyLocation(presetPart);
     }
+  };
+
+  const handleCameraPress = () => setShowBodyModal(true);
+
+  const selectBodyAndScan = async (partKey: string) => {
+    setShowBodyModal(false);
+    // Small delay so modal closes before camera opens
+    await new Promise(r => setTimeout(r, 200));
+    await pickImage(true, partKey);
   };
 
   const handleLogout = () => {
@@ -165,6 +191,7 @@ export default function HomeScreen() {
   };
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView style={s.container} showsVerticalScrollIndicator={false}>
 
       {/* ── Hero Header ── */}
@@ -236,7 +263,7 @@ export default function HomeScreen() {
                   <Text style={s.btnPrimaryTxt}>From Gallery</Text>
                 </LinearGradient>
               </TouchableOpacity>
-              <TouchableOpacity style={s.btnSecondary} onPress={() => pickImage(true)} activeOpacity={0.85}>
+              <TouchableOpacity style={s.btnSecondary} onPress={handleCameraPress} activeOpacity={0.85}>
                 <Ionicons name="camera" size={16} color="#2563EB" />
                 <Text style={s.btnSecondaryTxt}>Camera</Text>
               </TouchableOpacity>
@@ -364,6 +391,65 @@ export default function HomeScreen() {
 
       <View style={{ height: 24 }} />
     </ScrollView>
+
+    {/* ── Body Part Selection Modal ── */}
+    <Modal
+      visible={showBodyModal}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setShowBodyModal(false)}
+    >
+      <View style={s.modalOverlay}>
+        <View style={s.modalSheet}>
+          {/* Handle */}
+          <View style={s.modalHandle} />
+
+          {/* Title */}
+          <View style={s.modalHeader}>
+            <LinearGradient colors={['#2563EB', '#0D9488']} style={s.modalIcon}>
+              <Ionicons name="body" size={18} color="white" />
+            </LinearGradient>
+            <View>
+              <Text style={s.modalTitle}>Select Body Area</Text>
+              <Text style={s.modalSub}>Choose the area you want to scan</Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowBodyModal(false)} style={s.modalClose}>
+              <Ionicons name="close" size={18} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Body part grid */}
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
+            <View style={s.partGrid}>
+              {BODY_PARTS.map(part => (
+                <TouchableOpacity
+                  key={part.key}
+                  style={s.partCard}
+                  onPress={() => selectBodyAndScan(part.key)}
+                  activeOpacity={0.75}
+                >
+                  <LinearGradient colors={['#EFF6FF', '#F0FDFA']} style={s.partIconWrap}>
+                    <Ionicons name={part.icon} size={22} color="#2563EB" />
+                  </LinearGradient>
+                  <Text style={s.partLabel}>{part.label}</Text>
+                  <Text style={s.partHint} numberOfLines={1}>{part.hint}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Skip — just open camera */}
+          <TouchableOpacity
+            style={s.skipBtn}
+            onPress={() => { setShowBodyModal(false); setTimeout(() => pickImage(true), 200); }}
+          >
+            <Ionicons name="camera" size={16} color="#64748B" />
+            <Text style={s.skipTxt}>Skip — Just Open Camera</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </View>
   );
 }
 
@@ -443,4 +529,23 @@ const s = StyleSheet.create({
 
   disclaimer:      { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 4, alignItems: 'flex-start' },
   disclaimerTxt:   { fontSize: 11, color: '#94A3B8', lineHeight: 16, flex: 1 },
+
+  // Body Part Modal
+  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalSheet:      { backgroundColor: 'white', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 12, paddingHorizontal: 16, paddingBottom: 32 },
+  modalHandle:     { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalHeader:     { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 },
+  modalIcon:       { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  modalTitle:      { fontSize: 16, fontWeight: '800', color: '#0F172A' },
+  modalSub:        { fontSize: 12, color: '#64748B', marginTop: 1 },
+  modalClose:      { marginLeft: 'auto' as any, width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+
+  partGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 8 },
+  partCard:        { width: (W - 32 - 20) / 3, backgroundColor: '#F8FAFC', borderRadius: 16, padding: 12, alignItems: 'center', borderWidth: 1.5, borderColor: '#E2E8F0' },
+  partIconWrap:    { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  partLabel:       { fontSize: 12, fontWeight: '700', color: '#0F172A', textAlign: 'center' },
+  partHint:        { fontSize: 10, color: '#94A3B8', textAlign: 'center', marginTop: 2 },
+
+  skipBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, paddingVertical: 13, borderRadius: 14, borderWidth: 1.5, borderColor: '#E2E8F0' },
+  skipTxt:         { fontSize: 13, fontWeight: '600', color: '#64748B' },
 });
