@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  Alert, ActivityIndicator, StyleSheet, Animated, Dimensions, Modal,
+  Alert, ActivityIndicator, StyleSheet, Animated, Dimensions, Modal, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -173,21 +173,33 @@ export default function HomeScreen() {
 
   const handleCameraPress = () => setShowBodyModal(true);
 
-  const selectBodyAndScan = async (partKey: string) => {
+  const selectBodyAndScan = (partKey: string) => {
+    // Set body location immediately, close modal
+    setBodyLocation(partKey);
     setShowBodyModal(false);
-    // Small delay so modal closes before camera opens
-    await new Promise(r => setTimeout(r, 200));
-    await pickImage(true, partKey);
+    // On native: auto-open camera right away (no setTimeout — keeps user gesture alive)
+    // On web: just close modal; body location is set; user taps Camera button again
+    if (Platform.OS !== 'web') {
+      void pickImage(true, partKey);
+    }
   };
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out', style: 'destructive',
-        onPress: async () => { await logout(); router.replace('/login'); },
-      },
-    ]);
+  const handleLogout = async () => {
+    // Alert.alert callbacks are unreliable on React Native Web — use platform-safe confirm
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-restricted-globals
+      if (!confirm('Sign out of SkinVision AI?')) return;
+      await logout();
+      router.replace('/login');
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out', style: 'destructive',
+          onPress: async () => { await logout(); router.replace('/login'); },
+        },
+      ]);
+    }
   };
 
   return (

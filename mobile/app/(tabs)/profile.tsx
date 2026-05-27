@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  StyleSheet, Dimensions, Alert, ActivityIndicator,
+  StyleSheet, Dimensions, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,14 +70,21 @@ export default function ProfileScreen() {
     Alert.alert('Saved', 'Your medical profile has been updated.');
   };
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out', style: 'destructive',
-        onPress: async () => { await logout(); router.replace('/login'); },
-      },
-    ]);
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      // eslint-disable-next-line no-restricted-globals
+      if (!confirm('Sign out of SkinVision AI?')) return;
+      await logout();
+      router.replace('/login');
+    } else {
+      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out', style: 'destructive',
+          onPress: async () => { await logout(); router.replace('/login'); },
+        },
+      ]);
+    }
   };
 
   const set = (field: keyof MedicalProfile) => (val: string) =>

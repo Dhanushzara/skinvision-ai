@@ -2,12 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Animated, KeyboardAvoidingView, Platform, Alert,
-  ScrollView, ActivityIndicator, Dimensions,
+  ScrollView, ActivityIndicator, Dimensions, Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { loginUser, saveUser } from '../utils/auth';
+import { loginUser, registerUser, saveUser } from '../utils/auth';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -19,6 +19,9 @@ export default function LoginScreen() {
   const [loading, setLoading]   = useState(false);
   const [gLoading, setGLoading] = useState(false);
   const [focusField, setFocus]  = useState<string | null>(null);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [googleName, setGoogleName] = useState('');
+  const [googleEmail, setGoogleEmail] = useState('');
 
   const logoOp = useRef(new Animated.Value(0)).current;
   const logoY  = useRef(new Animated.Value(-24)).current;
@@ -56,10 +59,27 @@ export default function LoginScreen() {
     router.replace('/(tabs)');
   };
 
-  const handleGoogle = async () => {
+  const handleGoogle = () => {
+    setGoogleName('');
+    setGoogleEmail('');
+    setShowGoogleModal(true);
+  };
+
+  const confirmGoogle = async () => {
+    if (!googleName.trim() || !googleEmail.trim()) {
+      Alert.alert('Required', 'Please enter your name and email.');
+      return;
+    }
+    if (!googleEmail.includes('@')) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+    setShowGoogleModal(false);
     setGLoading(true);
-    await new Promise(r => setTimeout(r, 1300));
-    await saveUser({ name: 'Google User', email: 'user@gmail.com', provider: 'google' });
+    await new Promise(r => setTimeout(r, 800));
+    // Register or update the account linked to Google
+    await registerUser(googleName.trim(), googleEmail.trim(), '__google__');
+    await saveUser({ name: googleName.trim(), email: googleEmail.toLowerCase().trim(), provider: 'google' });
     setGLoading(false);
     router.replace('/(tabs)');
   };
@@ -217,6 +237,64 @@ export default function LoginScreen() {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ── Google Account Modal ── */}
+      <Modal visible={showGoogleModal} transparent animationType="slide" onRequestClose={() => setShowGoogleModal(false)}>
+        <View style={s.gOverlay}>
+          <View style={s.gSheet}>
+            <View style={s.gHandle} />
+            {/* Google header */}
+            <View style={s.gHeader}>
+              <MaterialCommunityIcons name="google" size={28} color="#4285F4" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.gTitle}>Sign in with Google</Text>
+                <Text style={s.gSub}>Enter your Google account details</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowGoogleModal(false)} style={s.gClose}>
+                <Ionicons name="close" size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Name input */}
+            <Text style={s.gLabel}>Full Name</Text>
+            <View style={s.gInput}>
+              <Ionicons name="person-outline" size={16} color="#94A3B8" />
+              <TextInput
+                style={s.gTxt}
+                placeholder="Your full name"
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="words"
+                value={googleName}
+                onChangeText={setGoogleName}
+              />
+            </View>
+
+            {/* Email input */}
+            <Text style={s.gLabel}>Google Email</Text>
+            <View style={s.gInput}>
+              <MaterialCommunityIcons name="google" size={16} color="#94A3B8" />
+              <TextInput
+                style={s.gTxt}
+                placeholder="yourname@gmail.com"
+                placeholderTextColor="#94A3B8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={googleEmail}
+                onChangeText={setGoogleEmail}
+              />
+            </View>
+
+            {/* Continue button */}
+            <TouchableOpacity onPress={confirmGoogle} activeOpacity={0.85}>
+              <LinearGradient colors={['#4285F4', '#1967D2']} style={s.gBtn}>
+                <MaterialCommunityIcons name="google" size={18} color="white" />
+                <Text style={s.gBtnTxt}>Continue with Google</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -266,4 +344,18 @@ const s = StyleSheet.create({
 
   errorBox:     { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FEF2F2', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#FECACA' },
   errorTxt:     { flex: 1, fontSize: 13, color: '#DC2626', lineHeight: 18 },
+
+  // Google modal
+  gOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  gSheet:       { backgroundColor: 'white', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, paddingBottom: 36 },
+  gHandle:      { width: 40, height: 4, backgroundColor: '#E2E8F0', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
+  gHeader:      { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 22 },
+  gTitle:       { fontSize: 16, fontWeight: '800', color: '#0F172A' },
+  gSub:         { fontSize: 12, color: '#64748B', marginTop: 1 },
+  gClose:       { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  gLabel:       { fontSize: 11, fontWeight: '700', color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  gInput:       { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 16 },
+  gTxt:         { flex: 1, fontSize: 14, color: '#0F172A', padding: 0 },
+  gBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16, borderRadius: 16, marginTop: 4 },
+  gBtnTxt:      { fontSize: 15, fontWeight: '800', color: 'white', letterSpacing: 0.2 },
 });

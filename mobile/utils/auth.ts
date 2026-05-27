@@ -66,10 +66,18 @@ export const registerUser = async (
   password: string,
 ): Promise<{ success: boolean; error?: string }> => {
   const accounts = await getAccounts();
-  const exists = accounts.find(
-    a => a.email.toLowerCase() === email.toLowerCase().trim(),
-  );
-  if (exists) {
+  const normEmail = email.toLowerCase().trim();
+  const existingIdx = accounts.findIndex(a => a.email === normEmail);
+
+  if (existingIdx !== -1) {
+    // Allow Google re-registration to update the stored name
+    if (password === '__google__') {
+      const updated = [...accounts];
+      updated[existingIdx] = { ...updated[existingIdx], name: name.trim(), password };
+      await saveAccounts(updated);
+      await saveUser({ name: name.trim(), email: normEmail, provider: 'google' });
+      return { success: true };
+    }
     return {
       success: false,
       error: 'An account with this email already exists.\nPlease sign in instead.',
@@ -77,7 +85,7 @@ export const registerUser = async (
   }
   const account: StoredAccount = {
     name: name.trim(),
-    email: email.toLowerCase().trim(),
+    email: normEmail,
     password,
   };
   await saveAccounts([...accounts, account]);
