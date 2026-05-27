@@ -1,0 +1,14 @@
+# Core API & image processing (Python 3.14 compatible)
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+pillow>=10.3.0
+opencv-python-headless>=4.9.0
+python-multipart>=0.0.9
+numpy>=1.26.0
+
+# ML inference — requires Python 3.9–3.12
+# If you have Python 3.12, install with:  python -m pip install tensorflow==2.16.1
+# tensorflow==2.16.1
+
+# Optional: faster scikit metrics
+# scikit-learn>=1.4.0

@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "SkinVision AI",
+    "slug": "skinvision-ai",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.skinvision.ai",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SkinVision AI needs camera access to scan your skin.",
+        "NSPhotoLibraryUsageDescription": "SkinVision AI needs photo access to analyze your skin photos.",
+        "NSPhotoLibraryAddUsageDescription": "SkinVision AI needs to save scan results."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#2563EB"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
+      "package": "com.skinvision.ai"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SkinVision AI needs camera access to scan your skin."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "SkinVision AI needs photo library access to analyze skin images.",
+          "cameraPermission": "SkinVision AI needs camera access to scan your skin."
+        }
+      ]
+    ],
+    "scheme": "skinvision",
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
+    }
+  }
+}
