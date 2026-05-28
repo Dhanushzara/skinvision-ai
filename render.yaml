@@ -1,0 +1,38 @@
+# SkinVision AI — Render.com Deployment Config
+# Deploy FREE at: https://render.com
+#
+# Steps:
+# 1. Push this project to GitHub
+# 2. Go to https://render.com → New → Web Service
+# 3. Connect your GitHub repo
+# 4. Render auto-detects this file and deploys
+
+services:
+  - type: web
+    name: skinvision-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+
+    # Free tier — 512MB RAM (demo mode only, no TF model)
+    # Upgrade to Starter ($7/mo) for TensorFlow inference
+    plan: free
+
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHON_VERSION
+        value: "3.12"
+
+    # Health check endpoint
+    healthCheckPath: /health
+
+    # Auto-deploy on git push
+    autoDeploy: true
+
+    # Persistent disk for uploaded images & DB
+    # (Only available on paid plans)
+    # disk:
+    #   name: skinvision-data
+    #   mountPath: /app/uploads
+    #   sizeGB: 1

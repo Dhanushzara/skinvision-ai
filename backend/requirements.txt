@@ -1,4 +1,6 @@
-# Core API & image processing (Python 3.14 compatible)
+# SkinVision AI — Backend Requirements
+# ──────────────────────────────────────────────────────────────────────────────
+# Core API & image processing
 fastapi>=0.111.0
 uvicorn[standard]>=0.29.0
 pillow>=10.3.0
@@ -6,9 +8,17 @@ opencv-python-headless>=4.9.0
 python-multipart>=0.0.9
 numpy>=1.26.0
 
-# ML inference — requires Python 3.9–3.12
-# If you have Python 3.12, install with:  python -m pip install tensorflow==2.16.1
-# tensorflow==2.16.1
-
-# Optional: faster scikit metrics
-# scikit-learn>=1.4.0
+# ──────────────────────────────────────────────────────────────────────────────
+# AI / ML — TensorFlow for real detection
+# REQUIRES Python 3.9 – 3.12  (NOT Python 3.13+)
+#
+# Install command:
+#   python -m pip install tensorflow==2.16.1
+#
+# If you have Python 3.13, install Python 3.12 first, then create a venv:
+#   py -3.12 -m venv venv
+#   venv\Scripts\activate
+#   pip install -r requirements.txt
+#   pip install tensorflow==2.16.1
+# ──────────────────────────────────────────────────────────────────────────────
+tensorflow==2.16.1

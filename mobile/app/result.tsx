@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Circle, Line, G, Polygon, Text as SvgText } from 'react-native-svg';
 import { API_BASE } from '../constants/api';
-import type { ScanResult } from '../types/scan';
+import type { ScanResult, DoctorSuggestion } from '../types/scan';
 
 const { width: W } = Dimensions.get('window');
 
@@ -21,7 +21,18 @@ const RISK_THEME = {
 } as const;
 type RK = keyof typeof RISK_THEME;
 
-// ── Fade-in wrapper ─────────────────────────────────────────────────────────
+const BAR_COLORS: Record<string, string> = {
+  melanoma:     '#EF4444',
+  non_melanoma: '#F97316',
+  acne:         '#F59E0B',
+  healthy:      '#10B981',
+  // legacy keys
+  mole:         '#EF4444',
+  non_mole:     '#F97316',
+  pimple:       '#F59E0B',
+};
+
+// ── Fade-in wrapper ──────────────────────────────────────────────────────────
 function FadeIn({ children, delay = 0, style }: {
   children: React.ReactNode; delay?: number; style?: object;
 }) {
@@ -40,98 +51,59 @@ function FadeIn({ children, delay = 0, style }: {
   );
 }
 
-// ── SVG Risk Gauge (semicircle) ──────────────────────────────────────────────
+// ── SVG Risk Gauge ───────────────────────────────────────────────────────────
 function RiskGauge({ score, color }: { score: number; color: string }) {
   const pct = Math.min(100, Math.max(0, score));
-  // Arc total length = π × r = π × 80 ≈ 251
   const arcTotal = 251;
-  const arcLen = (pct / 100) * arcTotal;
-  // Needle: -90° at 0%, 0° at 50%, +90° at 100%
+  const arcLen   = (pct / 100) * arcTotal;
   const needleAngle = (pct / 100) * 180 - 90;
-
   return (
     <Svg viewBox="0 0 200 120" width={200} height={120}>
-      {/* Track arc */}
-      <Path
-        d="M 20 100 A 80 80 0 0 1 180 100"
-        fill="none"
-        stroke="#E2E8F0"
-        strokeWidth="14"
-        strokeLinecap="round"
-      />
-      {/* Filled arc */}
-      <Path
-        d="M 20 100 A 80 80 0 0 1 180 100"
-        fill="none"
-        stroke={color}
-        strokeWidth="14"
-        strokeLinecap="round"
-        strokeDasharray={`${arcLen} ${arcTotal + 2}`}
-      />
-      {/* Needle */}
+      <Path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#E2E8F0" strokeWidth="14" strokeLinecap="round" />
+      <Path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke={color} strokeWidth="14" strokeLinecap="round"
+        strokeDasharray={`${arcLen} ${arcTotal + 2}`} />
       <G rotation={needleAngle} origin="100, 100">
         <Line x1="100" y1="100" x2="100" y2="32" stroke="#0F172A" strokeWidth="2.5" strokeLinecap="round" />
       </G>
-      {/* Center hub */}
       <Circle cx="100" cy="100" r="7" fill="#0F172A" />
       <Circle cx="100" cy="100" r="4" fill="white" />
-      {/* Tick labels */}
-      <SvgText x="16" y="116" textAnchor="middle" fontSize="9" fill="#94A3B8">0</SvgText>
-      <SvgText x="100" y="18" textAnchor="middle" fontSize="9" fill="#94A3B8">50</SvgText>
+      <SvgText x="16"  y="116" textAnchor="middle" fontSize="9" fill="#94A3B8">0</SvgText>
+      <SvgText x="100" y="18"  textAnchor="middle" fontSize="9" fill="#94A3B8">50</SvgText>
       <SvgText x="184" y="116" textAnchor="middle" fontSize="9" fill="#94A3B8">100</SvgText>
     </Svg>
   );
 }
 
-// ── SVG ABCDE Radar Chart ────────────────────────────────────────────────────
+// ── SVG ABCDE Radar ──────────────────────────────────────────────────────────
 function ABCDERadar({ scores }: { scores: Record<string, number> }) {
   const KEYS   = ['asymmetry', 'border', 'color', 'diameter', 'evolution'];
   const LABELS = ['Asym', 'Border', 'Color', 'Diam', 'Evol'];
   const CX = 85, CY = 85, R = 62;
-  // 5 axes: top first, clockwise every 72°
   const ANGLES = [0, 1, 2, 3, 4].map(i => ((i * 72 - 90) * Math.PI) / 180);
-
   const gridPts = (f: number) =>
-    ANGLES.map(a =>
-      `${(CX + Math.cos(a) * R * f).toFixed(1)},${(CY + Math.sin(a) * R * f).toFixed(1)}`
-    ).join(' ');
-
+    ANGLES.map(a => `${(CX + Math.cos(a) * R * f).toFixed(1)},${(CY + Math.sin(a) * R * f).toFixed(1)}`).join(' ');
   const dataPts = KEYS.map((k, i) => {
     const v = Math.min(10, Math.max(0, scores[k] ?? 5));
-    const r = (v / 10) * R;
-    return { x: CX + Math.cos(ANGLES[i]) * r, y: CY + Math.sin(ANGLES[i]) * r };
+    return { x: CX + Math.cos(ANGLES[i]) * (v / 10) * R, y: CY + Math.sin(ANGLES[i]) * (v / 10) * R };
   });
-  const dataStr = dataPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-
-  const labelR = R + 16;
-  const labelPos = ANGLES.map((a, i) => ({
-    x: CX + Math.cos(a) * labelR,
-    y: CY + Math.sin(a) * labelR,
-    label: LABELS[i],
+  const dataStr   = dataPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const labelPos  = ANGLES.map((a, i) => ({
+    x: CX + Math.cos(a) * (R + 16), y: CY + Math.sin(a) * (R + 16), label: LABELS[i],
   }));
-
   return (
     <Svg viewBox="0 0 170 170" width={170} height={170}>
-      {/* Grid polygons */}
       {[0.25, 0.5, 0.75, 1.0].map((f, gi) => (
         <Polygon key={gi} points={gridPts(f)} fill="none" stroke="#E2E8F0" strokeWidth="1" />
       ))}
-      {/* Axis lines */}
       {ANGLES.map((a, ai) => (
-        <Line
-          key={ai}
-          x1={CX} y1={CY}
+        <Line key={ai} x1={CX} y1={CY}
           x2={(CX + Math.cos(a) * R).toFixed(1)} y2={(CY + Math.sin(a) * R).toFixed(1)}
-          stroke="#CBD5E1" strokeWidth="1"
-        />
+          stroke="#CBD5E1" strokeWidth="1" />
       ))}
-      {/* Data polygon */}
       <Polygon points={dataStr} fill="rgba(37,99,235,0.18)" stroke="#2563EB" strokeWidth="2" />
-      {/* Data dots */}
       {dataPts.map((p, di) => (
         <Circle key={di} cx={p.x.toFixed(1)} cy={p.y.toFixed(1)} r="4" fill="#2563EB" />
       ))}
-      {/* Axis labels */}
       {labelPos.map((lp, li) => (
         <SvgText key={li} x={lp.x.toFixed(1)} y={lp.y.toFixed(1)}
           textAnchor="middle" fontSize="9" fill="#64748B" fontWeight="600">
@@ -151,9 +123,10 @@ function ClassBar({ label, value, color, delay }: {
     Animated.timing(anim, { toValue: value, duration: 700, delay, useNativeDriver: false }).start();
   }, []);
   const animW = anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+  const displayLabel = label.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   return (
     <View style={cb.row}>
-      <Text style={cb.label}>{label.replace('_', ' ')}</Text>
+      <Text style={cb.label}>{displayLabel}</Text>
       <View style={cb.track}>
         <Animated.View style={[cb.fill, { width: animW, backgroundColor: color }]} />
       </View>
@@ -163,7 +136,7 @@ function ClassBar({ label, value, color, delay }: {
 }
 const cb = StyleSheet.create({
   row:   { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 9 },
-  label: { width: 76, fontSize: 11, fontWeight: '600', color: '#64748B', textTransform: 'capitalize' },
+  label: { width: 90, fontSize: 11, fontWeight: '600', color: '#64748B' },
   track: { flex: 1, height: 8, backgroundColor: '#F1F5F9', borderRadius: 8, overflow: 'hidden' },
   fill:  { height: '100%', borderRadius: 8 },
   val:   { width: 40, fontSize: 11, fontWeight: '700', color: '#0F172A', textAlign: 'right' },
@@ -195,11 +168,148 @@ const sc = StyleSheet.create({
   body:     { paddingHorizontal: 16, paddingBottom: 16 },
 });
 
-// ── Result Screen ─────────────────────────────────────────────────────────────
-const BAR_COLORS: Record<string, string> = {
-  mole: '#EF4444', non_mole: '#F59E0B', pimple: '#F97316', healthy: '#10B981',
-};
+// ── Demo Mode Banner ────────────────────────────────────────────────────────
+function DemoModeBanner() {
+  return (
+    <View style={dm.wrap}>
+      <Ionicons name="flask" size={16} color="#92400E" />
+      <View style={{ flex: 1 }}>
+        <Text style={dm.title}>Demo Mode — Results Not Real</Text>
+        <Text style={dm.sub}>
+          No trained model loaded. Results are simulated.{'\n'}
+          Train with your own images for accurate detection.
+        </Text>
+      </View>
+    </View>
+  );
+}
+const dm = StyleSheet.create({
+  wrap:  { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginHorizontal: 16, marginBottom: 10, backgroundColor: '#FFFBEB', borderRadius: 14, padding: 14, borderWidth: 1.5, borderColor: '#FCD34D' },
+  title: { fontSize: 13, fontWeight: '800', color: '#92400E', marginBottom: 2 },
+  sub:   { fontSize: 11, color: '#B45309', lineHeight: 16 },
+});
 
+// ── Doctor Suggestion Card ───────────────────────────────────────────────────
+function DoctorSuggestionCard({ suggestion }: { suggestion: DoctorSuggestion }) {
+  if (!suggestion || suggestion.urgency_level === 'NONE') return null;
+
+  const isUrgent = suggestion.urgency_level === 'URGENT';
+  const isHigh   = suggestion.urgency_level === 'HIGH';
+  const isMod    = suggestion.urgency_level === 'MODERATE';
+  const isLow    = suggestion.urgency_level === 'LOW';
+
+  const bgColors: [string, string] = isUrgent
+    ? ['#FEF2F2', '#FFF5F5']
+    : isHigh
+    ? ['#FFF7ED', '#FFFBEB']
+    : isMod
+    ? ['#FFFBEB', '#FFF7ED']
+    : ['#EFF6FF', '#F0FDFA'];
+
+  const headerLabel = isUrgent
+    ? '🚨  URGENT — See Doctor Today'
+    : isHigh
+    ? '⚠️  See Doctor This Week'
+    : isMod
+    ? '⚡  Doctor Recommended'
+    : '💊  Optional Consultation';
+
+  return (
+    <View style={ds.wrap}>
+      <LinearGradient colors={bgColors} style={ds.grad}>
+        {/* Header row */}
+        <View style={[ds.headerRow, { borderLeftColor: suggestion.color }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[ds.headerLabel, { color: suggestion.color }]}>{headerLabel}</Text>
+            {suggestion.stage ? (
+              <View style={[ds.stagePill, { backgroundColor: suggestion.color + '22' }]}>
+                <Text style={[ds.stageText, { color: suggestion.color }]}>
+                  {suggestion.stage === 'Advanced' ? '🔴' : suggestion.stage === 'Moderate' ? '🟠' : '🟡'}
+                  {'  Stage: ' + suggestion.stage}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        {/* Message */}
+        <Text style={ds.message}>{suggestion.message}</Text>
+
+        {/* Doctor type */}
+        {suggestion.doctor_type ? (
+          <View style={ds.infoRow}>
+            <View style={[ds.iconCircle, { backgroundColor: suggestion.color + '20' }]}>
+              <Ionicons name="medical" size={14} color={suggestion.color} />
+            </View>
+            <View>
+              <Text style={ds.infoLabel}>Consult</Text>
+              <Text style={[ds.infoValue, { color: suggestion.color }]}>{suggestion.doctor_type}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Department */}
+        {suggestion.department ? (
+          <View style={ds.infoRow}>
+            <View style={[ds.iconCircle, { backgroundColor: '#64748B20' }]}>
+              <Ionicons name="business" size={14} color="#64748B" />
+            </View>
+            <View>
+              <Text style={ds.infoLabel}>Department</Text>
+              <Text style={ds.infoValue}>{suggestion.department}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Timeline */}
+        {suggestion.timeline ? (
+          <View style={ds.infoRow}>
+            <View style={[ds.iconCircle, { backgroundColor: '#64748B20' }]}>
+              <Ionicons name="time" size={14} color="#64748B" />
+            </View>
+            <View>
+              <Text style={ds.infoLabel}>Timeline</Text>
+              <Text style={ds.infoValue}>{suggestion.timeline}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Find doctor button */}
+        {suggestion.search_query ? (
+          <TouchableOpacity
+            style={[ds.findBtn, { backgroundColor: suggestion.color }]}
+            activeOpacity={0.85}
+            onPress={() =>
+              Linking.openURL(
+                `https://www.google.com/maps/search/${encodeURIComponent(suggestion.search_query!)}`
+              )
+            }
+          >
+            <Ionicons name="location" size={15} color="white" />
+            <Text style={ds.findBtnTxt}>{suggestion.action ?? 'Find Near Me'}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </LinearGradient>
+    </View>
+  );
+}
+const ds = StyleSheet.create({
+  wrap:       { marginHorizontal: 16, marginBottom: 10, borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 4 },
+  grad:       { padding: 18 },
+  headerRow:  { borderLeftWidth: 4, paddingLeft: 12, marginBottom: 12 },
+  headerLabel:{ fontSize: 14, fontWeight: '800', marginBottom: 6 },
+  stagePill:  { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  stageText:  { fontSize: 12, fontWeight: '700' },
+  message:    { fontSize: 13, color: '#334155', lineHeight: 20, marginBottom: 14 },
+  infoRow:    { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 10 },
+  iconCircle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  infoLabel:  { fontSize: 10, color: '#94A3B8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoValue:  { fontSize: 13, fontWeight: '700', color: '#0F172A' },
+  findBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 14, marginTop: 4 },
+  findBtnTxt: { color: 'white', fontSize: 14, fontWeight: '700' },
+});
+
+// ── Result Screen ─────────────────────────────────────────────────────────────
 export default function ResultScreen() {
   const router = useRouter();
   const { data } = useLocalSearchParams<{ data: string }>();
@@ -207,14 +317,41 @@ export default function ResultScreen() {
 
   const riskKey = (scan.risk_level && scan.risk_level in RISK_THEME
     ? scan.risk_level : 'Low') as RK;
-  const t = RISK_THEME[riskKey];
-  const riskPct = Math.min(100, Math.max(0, scan.risk_score ?? 0));
+  const t        = RISK_THEME[riskKey];
+  const riskPct  = Math.min(100, Math.max(0, scan.risk_score ?? 0));
   const isHighRisk = riskKey === 'High' || riskKey === 'Critical';
 
+  // Show ABCDE for melanoma + non_melanoma (any suspicious skin lesion)
+  const showABCDE = scan.class_name === 'melanoma'
+    || scan.class_name === 'non_melanoma'
+    || (scan.class_name as string) === 'mole';   // legacy class name from older scans
+
+  const docSuggestion  = scan.doctor_suggestion as DoctorSuggestion | undefined;
+  const isDemoMode     = scan.is_demo_mode === true;
+
+  const [gradcamUri,  setGradcamUri]  = useState<string | null>(null);
+  const [gradcamLoading, setGradcamLoading] = useState(false);
   const [doctorEmail, setDoctorEmail] = useState('');
-  const [docMessage, setDocMessage] = useState('');
-  const [shareLink, setShareLink]   = useState('');
-  const [sharing, setSharing]       = useState(false);
+  const [docMessage,  setDocMessage]  = useState('');
+  const [shareLink,   setShareLink]   = useState('');
+  const [sharing,     setSharing]     = useState(false);
+
+  const loadGradcam = async () => {
+    if (!scan.id || gradcamUri) return;
+    setGradcamLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/gradcam/${scan.id}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url  = URL.createObjectURL(blob);
+        setGradcamUri(url);
+      }
+    } catch {
+      // Grad-CAM unavailable in demo mode — silently ignore
+    } finally {
+      setGradcamLoading(false);
+    }
+  };
 
   const handleQuickShare = async () => {
     await Share.share({
@@ -228,9 +365,9 @@ export default function ResultScreen() {
     setSharing(true);
     try {
       const fd = new FormData();
-      fd.append('scan_id', String(scan.id));
+      fd.append('scan_id',      String(scan.id));
       fd.append('doctor_email', doctorEmail);
-      fd.append('message', docMessage);
+      fd.append('message',      docMessage);
       const res = await fetch(`${API_BASE}/api/consultations`, { method: 'POST', body: fd });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const resp = await res.json();
@@ -251,11 +388,8 @@ export default function ResultScreen() {
   const IMG_H = (W - 32) * 0.65;
 
   return (
-    <ScrollView
-      style={s.container}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
+    <ScrollView style={s.container} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+
       {/* ── Header ── */}
       <LinearGradient colors={['#EFF6FF', '#F0FDFA']} style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.hBtn}>
@@ -298,8 +432,22 @@ export default function ResultScreen() {
         </View>
       </FadeIn>
 
+      {/* ── Demo Mode Warning ── */}
+      {isDemoMode && (
+        <FadeIn delay={100}>
+          <DemoModeBanner />
+        </FadeIn>
+      )}
+
+      {/* ── Doctor Suggestion Card (shown if suggestion exists) ── */}
+      {!isDemoMode && docSuggestion && docSuggestion.urgency_level !== 'NONE' && (
+        <FadeIn delay={120}>
+          <DoctorSuggestionCard suggestion={docSuggestion} />
+        </FadeIn>
+      )}
+
       {/* ── Risk Gauge ── */}
-      <FadeIn delay={140}>
+      <FadeIn delay={160}>
         <Section title="Risk Assessment" icon="alert-circle">
           <View style={s.gaugeWrap}>
             <RiskGauge score={riskPct} color={t.bar} />
@@ -308,9 +456,9 @@ export default function ResultScreen() {
         </Section>
       </FadeIn>
 
-      {/* ── Classification Breakdown ── */}
+      {/* ── Detection Breakdown ── */}
       {classBars.length > 0 && (
-        <FadeIn delay={200}>
+        <FadeIn delay={220}>
           <Section title="Detection Breakdown" icon="analytics">
             {classBars.map(([cls, prob], i) => (
               <ClassBar key={cls} label={cls} value={prob} color={BAR_COLORS[cls] ?? '#2563EB'} delay={i * 80} />
@@ -319,10 +467,14 @@ export default function ResultScreen() {
         </FadeIn>
       )}
 
-      {/* ── ABCDE Analysis (moles only) ── */}
-      {scan.class_name === 'mole' && scan.abcde_scores && (
-        <FadeIn delay={260}>
-          <Section title="ABCDE Analysis" icon="body">
+      {/* ── ABCDE Analysis (melanoma + non_melanoma) ── */}
+      {showABCDE && scan.abcde_scores && (
+        <FadeIn delay={280}>
+          <Section title="ABCDE Dermoscopy Analysis" icon="body">
+            <Text style={s.abcdeIntro}>
+              ABCDE criteria help evaluate suspicious skin lesions for signs of melanoma.
+              Scores above 6 indicate elevated concern.
+            </Text>
             <View style={s.radarWrap}>
               <ABCDERadar scores={scan.abcde_scores as unknown as Record<string, number>} />
             </View>
@@ -343,8 +495,42 @@ export default function ResultScreen() {
         </FadeIn>
       )}
 
+      {/* ── Grad-CAM Heatmap (Explainable AI) ── */}
+      {!isDemoMode && scan.id && (
+        <FadeIn delay={300}>
+          <Section title="Explainable AI — Heatmap" icon="eye" defaultOpen={false}>
+            <Text style={s.explainTxt}>
+              Grad-CAM shows which region of the image influenced the AI prediction.
+              Red/yellow = high concern area. Blue = low concern.
+            </Text>
+            {gradcamUri ? (
+              <View style={gc.imgWrap}>
+                <Image source={{ uri: gradcamUri }} style={gc.img} resizeMode="contain" />
+                <View style={gc.legend}>
+                  <Text style={gc.legendTxt}>Low concern</Text>
+                  <View style={gc.legendBar} />
+                  <Text style={gc.legendTxt}>High concern</Text>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={gc.loadBtn}
+                onPress={loadGradcam}
+                disabled={gradcamLoading}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={gradcamLoading ? 'hourglass' : 'eye'} size={16} color="white" />
+                <Text style={gc.loadBtnTxt}>
+                  {gradcamLoading ? 'Generating heatmap…' : 'Show AI Heatmap'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </Section>
+        </FadeIn>
+      )}
+
       {/* ── AI Explanation ── */}
-      <FadeIn delay={300}>
+      <FadeIn delay={320}>
         <Section title="AI Explanation" icon="chatbubble-ellipses" defaultOpen={false}>
           <Text style={s.explainTxt}>{scan.explanation ?? ''}</Text>
           <View style={s.adviceBox}>
@@ -354,8 +540,8 @@ export default function ResultScreen() {
         </Section>
       </FadeIn>
 
-      {/* ── TeleDerm / Share with Doctor ── */}
-      <FadeIn delay={340}>
+      {/* ── Share with Doctor ── */}
+      <FadeIn delay={360}>
         <Section title="Share with Doctor (TeleDerm)" icon="videocam" defaultOpen={false}>
           <Text style={s.teleSubtitle}>
             Generate a secure link to share this report with a dermatologist.
@@ -401,7 +587,7 @@ export default function ResultScreen() {
       </FadeIn>
 
       {/* ── CTA card ── */}
-      <FadeIn delay={390} style={{ marginHorizontal: 16, marginBottom: 10 }}>
+      <FadeIn delay={400} style={{ marginHorizontal: 16, marginBottom: 10 }}>
         <LinearGradient
           colors={isHighRisk ? ['#EF4444', '#DC2626'] : ['#10B981', '#059669']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -411,11 +597,11 @@ export default function ResultScreen() {
             <Ionicons name={isHighRisk ? 'medical' : 'leaf'} size={28} color="white" />
             <View style={{ flex: 1 }}>
               <Text style={s.ctaTitle}>
-                {isHighRisk ? 'Consult a Dermatologist' : 'Self Care Tips'}
+                {isHighRisk ? 'Professional Evaluation Needed' : 'Self Care Tips'}
               </Text>
               <Text style={s.ctaSub}>
                 {isHighRisk
-                  ? 'Your risk level requires professional evaluation.'
+                  ? 'Your risk level requires professional medical evaluation.'
                   : 'Maintain healthy skin with daily care routines.'}
               </Text>
             </View>
@@ -482,6 +668,7 @@ const s = StyleSheet.create({
   gaugeWrap:    { alignItems: 'center', paddingTop: 4, paddingBottom: 6 },
   gaugeLbl:     { fontSize: 15, fontWeight: '800', marginTop: 2 },
 
+  abcdeIntro:   { fontSize: 12, color: '#64748B', lineHeight: 18, marginBottom: 12 },
   radarWrap:    { alignItems: 'center', paddingVertical: 4 },
   abRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   abKey:        { width: 74, fontSize: 12, fontWeight: '600', color: '#475569', textTransform: 'capitalize' },
@@ -512,4 +699,14 @@ const s = StyleSheet.create({
   footer:       { marginHorizontal: 16, marginTop: 4 },
   newScanBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 17, borderRadius: 16 },
   newScanTxt:   { color: 'white', fontSize: 15, fontWeight: '700' },
+});
+
+const gc = StyleSheet.create({
+  imgWrap:   { marginTop: 10, borderRadius: 12, overflow: 'hidden', backgroundColor: '#0F172A' },
+  img:       { width: '100%', height: 220 },
+  legend:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: 6 },
+  legendBar: { flex: 1, height: 8, marginHorizontal: 8, borderRadius: 4, backgroundColor: '#2563EB' },
+  legendTxt: { fontSize: 10, color: '#94A3B8', fontWeight: '600' },
+  loadBtn:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, paddingVertical: 13, borderRadius: 12, backgroundColor: '#1E293B' },
+  loadBtnTxt:{ color: 'white', fontSize: 13, fontWeight: '700' },
 });
