@@ -5,7 +5,9 @@
     "version": "2.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.skinvision.ai",
@@ -24,7 +26,8 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
       ],
       "package": "com.skinvision.ai"
     },
@@ -47,8 +50,12 @@
     "scheme": "skinvision",
     "extra": {
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "80a8a4ef-0bb8-470f-bfec-f43b5d7b90d6"
+      },
+      "router": {
+        "origin": false
       }
-    }
+    },
+    "owner": "dhanushzara"
   }
 }
