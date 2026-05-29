@@ -680,6 +680,206 @@ async def get_gradcam(scan_id: str):
     return Response(content=heatmap_bytes, media_type="image/jpeg")
 
 
+# ── FHIR R4 — Hospital Integration ──────────────────────────────────────────
+# Maps our internal class names → SNOMED CT codes (international standard)
+_SNOMED = {
+    "melanoma":     ("372244006",  "Malignant melanoma of skin"),
+    "non_melanoma": ("402815007",  "Non-melanoma skin cancer"),
+    "acne":         ("11381005",   "Acne"),
+    "healthy":      ("17636008",   "Normal skin"),
+}
+
+# Risk level → HL7 severity codes
+_HL7_SEVERITY = {
+    "Critical": "severe",
+    "High":     "moderate",
+    "Medium":   "mild",
+    "Low":      "minimal",
+}
+
+
+@app.get("/api/fhir/report/{scan_id}")
+async def fhir_report(scan_id: str):
+    """
+    Returns a FHIR R4-compliant DiagnosticReport JSON for the scan.
+    Can be imported by hospital EMR systems (Epic, Cerner, etc.)
+    and rural clinic FHIR endpoints.
+    """
+    s = _get_scan_row(scan_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    class_name = s.get("class_name", "healthy")
+    snomed_code, snomed_display = _SNOMED.get(class_name, ("17636008", "Skin finding"))
+    risk_level = s.get("risk_level", "Low")
+    severity   = _HL7_SEVERITY.get(risk_level, "minimal")
+    created_at = s.get("created_at", datetime.utcnow().isoformat())
+
+    # Build FHIR R4 DiagnosticReport
+    fhir_report = {
+        "resourceType": "DiagnosticReport",
+        "id":           scan_id,
+        "meta": {
+            "profile": ["http://hl7.org/fhir/StructureDefinition/DiagnosticReport"],
+            "lastUpdated": created_at,
+        },
+        "status": "final",
+        "category": [{
+            "coding": [{
+                "system":  "http://terminology.hl7.org/CodeSystem/v2-0074",
+                "code":    "PAT",
+                "display": "Pathology (investigation)",
+            }]
+        }],
+        "code": {
+            "coding": [{
+                "system":  "http://loinc.org",
+                "code":    "18748-4",
+                "display": "Diagnostic imaging study",
+            }],
+            "text": "AI Skin Lesion Analysis — SkinVision AI v3",
+        },
+        "effectiveDateTime": created_at,
+        "issued":            created_at,
+        "result": [{
+            "reference": f"Observation/{scan_id}-main",
+        }],
+        "conclusion": s.get("result", snomed_display),
+        "conclusionCode": [{
+            "coding": [{
+                "system":  "http://snomed.info/sct",
+                "code":    snomed_code,
+                "display": snomed_display,
+            }]
+        }],
+        "extension": [{
+            "url":         "http://skinvision.ai/fhir/ai-confidence",
+            "valueDecimal": round(s.get("confidence", 0.0), 2),
+        }, {
+            "url":         "http://skinvision.ai/fhir/risk-score",
+            "valueInteger": s.get("risk_score", 0),
+        }, {
+            "url":         "http://skinvision.ai/fhir/risk-level",
+            "valueString":  risk_level,
+        }, {
+            "url":         "http://skinvision.ai/fhir/body-site",
+            "valueString":  s.get("body_location") or "Not specified",
+        }, {
+            "url":         "http://skinvision.ai/fhir/model-version",
+            "valueString":  "SkinVision-EfficientNetB0-v3",
+        }],
+        # FHIR Observation (inline)
+        "contained": [{
+            "resourceType":  "Observation",
+            "id":            f"{scan_id}-main",
+            "status":        "final",
+            "code": {
+                "coding": [{
+                    "system":  "http://snomed.info/sct",
+                    "code":    snomed_code,
+                    "display": snomed_display,
+                }]
+            },
+            "valueCodeableConcept": {
+                "coding": [{
+                    "system":  "http://snomed.info/sct",
+                    "code":    snomed_code,
+                    "display": snomed_display,
+                }],
+                "text": s.get("result", snomed_display),
+            },
+            "interpretation": [{
+                "coding": [{
+                    "system":  "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                    "code":    "A" if risk_level in ("High", "Critical") else "N",
+                    "display": "Abnormal" if risk_level in ("High", "Critical") else "Normal",
+                }]
+            }],
+            "note": [{"text": s.get("explanation", "")}],
+            "component": [
+                {
+                    "code": {"text": "AI Confidence"},
+                    "valueQuantity": {
+                        "value": round(s.get("confidence", 0.0), 2),
+                        "unit": "%",
+                        "system": "http://unitsofmeasure.org",
+                        "code": "%",
+                    },
+                },
+                {
+                    "code": {"text": "Risk Score"},
+                    "valueQuantity": {
+                        "value": s.get("risk_score", 0),
+                        "unit": "score",
+                    },
+                },
+            ],
+        }],
+    }
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content=fhir_report,
+        headers={
+            "Content-Type": "application/fhir+json",
+            "X-FHIR-Version": "4.0.1",
+        },
+    )
+
+
+@app.get("/api/hospital/report/{scan_id}")
+async def hospital_report(scan_id: str):
+    """
+    Human-readable structured report for hospital / rural clinic staff.
+    Returns a clean JSON summary suitable for printing or EMR entry.
+    """
+    s = _get_scan_row(scan_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Scan not found")
+
+    class_name = s.get("class_name", "healthy")
+    info       = CLASS_INFO.get(class_name, CLASS_INFO["healthy"])
+    doctor     = s.get("doctor_suggestion", {})
+    abcde      = s.get("abcde_scores", {})
+
+    return {
+        "report_type":    "SkinVision AI — Clinical Summary",
+        "generated_by":   "SkinVision AI v3.0 (EfficientNetB0)",
+        "generated_at":   s.get("created_at"),
+        "scan_id":        scan_id,
+        "fhir_report_url": f"/api/fhir/report/{scan_id}",
+
+        "patient_info": {
+            "body_location": s.get("body_location") or "Not specified",
+        },
+        "diagnosis": {
+            "condition":    s.get("result"),
+            "class":        class_name,
+            "confidence":   f"{s.get('confidence', 0):.1f}%",
+            "is_malignant": info.get("isMalignant"),
+            "urgency":      info.get("urgency"),
+        },
+        "risk_assessment": {
+            "level":        s.get("risk_level"),
+            "score":        f"{s.get('risk_score', 0)}/100",
+        },
+        "abcde_criteria":  abcde,
+        "recommendation": {
+            "doctor_type":  doctor.get("doctor_type"),
+            "department":   doctor.get("department"),
+            "timeline":     doctor.get("timeline"),
+            "message":      doctor.get("message"),
+            "urgency_level": doctor.get("urgency_level"),
+        },
+        "ai_explanation":  s.get("explanation"),
+        "advice":          info.get("advice"),
+        "disclaimer": (
+            "This report is AI-generated and NOT a substitute for professional "
+            "medical diagnosis. A qualified dermatologist must evaluate the patient."
+        ),
+    }
+
+
 @app.get("/health")
 async def health():
     return {

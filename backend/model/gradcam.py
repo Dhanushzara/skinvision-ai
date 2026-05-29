@@ -60,10 +60,12 @@ def generate_gradcam(
         import tensorflow as tf
         from PIL import Image
 
-        # ── Preprocess ────────────────────────────────────────────────────
+        # ── Preprocess (must match training preprocessing) ────────────────
+        from tensorflow.keras.applications.efficientnet import preprocess_input
         img_pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         img_resized = img_pil.resize(img_size, Image.LANCZOS)
-        img_arr  = np.array(img_resized, dtype=np.float32) / 255.0
+        img_arr  = np.array(img_resized, dtype=np.float32)   # keep [0–255]
+        img_arr  = preprocess_input(img_arr)                  # EfficientNet scaling
         img_batch = np.expand_dims(img_arr, axis=0)
 
         # ── Find last conv layer ──────────────────────────────────────────
