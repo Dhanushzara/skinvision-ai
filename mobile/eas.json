@@ -17,7 +17,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://10.175.223.46:8000"
+        "EXPO_PUBLIC_API_URL": "https://skinvision-ai-la5h.onrender.com"
       }
     },
     "production": {
