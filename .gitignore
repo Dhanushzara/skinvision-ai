@@ -13,6 +13,11 @@ __pycache__/
 backend/skinvision.db
 backend/models/
 
+# Training data (images — large files, stored locally only)
+backend/data/
+backend/uploads/
+backend/extracted/
+
 # Mobile
 mobile/node_modules/
 mobile/.expo/

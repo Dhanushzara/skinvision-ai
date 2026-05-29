@@ -1,0 +1,42 @@
+# EAS Build ignore — keeps the upload small (training data stays on PC only)
+
+# Training images — huge (6GB+), not needed for mobile build
+backend/data/
+
+# Uploaded scan images — not needed for build
+backend/uploads/
+uploads/
+
+# Trained models — large binary files, not needed for mobile build
+backend/models/
+
+# Python cache
+backend/__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Extracted dataset folders
+backend/extracted/
+
+# Jupyter checkpoints
+**/.ipynb_checkpoints/
+
+# Virtual environments
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+
+# SQLite DB
+backend/skinvision.db
+*.db
+
+# Web app build
+web/node_modules/
+web/dist/
+
+# Mobile cache (already in .gitignore but just in case)
+mobile/node_modules/
+mobile/.expo/
