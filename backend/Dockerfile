@@ -20,7 +20,8 @@ RUN pip install --no-cache-dir \
     pillow>=10.3.0 \
     opencv-python-headless>=4.9.0 \
     python-multipart>=0.0.9 \
-    "numpy>=1.26.0"
+    "numpy>=1.26.0" \
+    scipy>=1.13.0
 
 # Optional: install tensorflow if TF_INSTALL=1 build arg is set
 ARG TF_INSTALL=0
@@ -36,4 +37,4 @@ RUN mkdir -p uploads models data/train/melanoma data/train/non_melanoma \
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
