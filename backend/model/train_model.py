@@ -217,17 +217,26 @@ def train():
     MODELS_DIR.mkdir(exist_ok=True)
 
     # 3. Data generators
+    # NOTE: NO rescale=1/255 — EfficientNetB0 has built-in preprocessing
+    # that expects raw [0–255] pixel values. Adding rescale breaks features.
+    from tensorflow.keras.applications.efficientnet import preprocess_input
+
     aug = ImageDataGenerator(
-        rescale=1.0 / 255,
-        rotation_range=40,
-        width_shift_range=0.2,
-        height_shift_range=0.2,
-        shear_range=0.15,
-        zoom_range=0.3,
+        preprocessing_function=preprocess_input,   # ← EfficientNet correct scaling
+        rotation_range=20,          # reduced from 40 — less aggressive
+        width_shift_range=0.1,
+        height_shift_range=0.1,
+        shear_range=0.1,
+        zoom_range=0.15,            # reduced from 0.3
         horizontal_flip=True,
-        vertical_flip=True,
-        brightness_range=[0.7, 1.3],
+        vertical_flip=False,        # disabled — skin orientation matters
+        brightness_range=[0.85, 1.15],  # narrower range
         fill_mode="nearest",
+        validation_split=VALIDATION_SPLIT,
+    )
+
+    val_aug = ImageDataGenerator(
+        preprocessing_function=preprocess_input,   # validation: no augmentation
         validation_split=VALIDATION_SPLIT,
     )
 
@@ -240,7 +249,7 @@ def train():
         subset="training",
         shuffle=True,
     )
-    val_gen = aug.flow_from_directory(
+    val_gen = val_aug.flow_from_directory(
         DATA_DIR,
         target_size=IMG_SIZE,
         batch_size=BATCH_SIZE,
