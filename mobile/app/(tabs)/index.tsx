@@ -162,8 +162,19 @@ export default function HomeScreen() {
       if (status !== 'granted') { Alert.alert('Permission Required', 'Gallery access needed.'); return; }
     }
     const res = cam
-      ? await ImagePicker.launchCameraAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9, allowsEditing: true, aspect: [1, 1] })
-      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.9, allowsEditing: true, aspect: [1, 1] });
+      ? await ImagePicker.launchCameraAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 1.0,                          // max quality
+          allowsEditing: true,
+          aspect: [1, 1],
+          cameraType: ImagePicker.CameraType.back, // force back camera (higher resolution)
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          quality: 1.0,
+          allowsEditing: true,
+          aspect: [1, 1],
+        });
     if (!res.canceled && res.assets[0]) {
       setSelectedImage(res.assets[0].uri);
       setImageFile(res.assets[0]);
@@ -279,6 +290,14 @@ export default function HomeScreen() {
                 <Ionicons name="camera" size={16} color="#2563EB" />
                 <Text style={s.btnSecondaryTxt}>Camera</Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Camera tip */}
+            <View style={s.cameraTip}>
+              <Ionicons name="information-circle" size={13} color="#0D9488" />
+              <Text style={s.cameraTipTxt}>
+                Use <Text style={{ fontWeight: '700' }}>back camera</Text> · hold <Text style={{ fontWeight: '700' }}>6–8 inches</Text> from skin · good lighting
+              </Text>
             </View>
           </View>
         ) : (
@@ -497,6 +516,9 @@ const s = StyleSheet.create({
   dropNote:        { fontSize: 11, color: '#94A3B8' },
 
   btnRow:          { flexDirection: 'row', gap: 10 },
+  cameraTip:       { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F0FDFA', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginTop: 8, borderWidth: 1, borderColor: '#99F6E4' },
+  cameraTipTxt:    { fontSize: 11, color: '#0F766E', flex: 1, lineHeight: 16 },
+
   btnPrimary:      { flex: 1, borderRadius: 14, overflow: 'hidden' },
   btnGrad:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
   btnPrimaryTxt:   { color: 'white', fontWeight: '700', fontSize: 14 },

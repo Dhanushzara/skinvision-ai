@@ -73,14 +73,19 @@ CLASS_INFO = {
         "emoji":       "🟠",
     },
     "acne": {
-        "label":       "Acne / Pimple",
-        "description": "Acne vulgaris detected. Inflammatory or non-inflammatory acne lesion.",
+        "label":       "Eczema / Inflammatory Skin",
+        "description": (
+            "Inflammatory skin condition detected — this may be eczema (atopic dermatitis), "
+            "contact dermatitis, or similar inflammatory condition causing redness and irritation."
+        ),
         "isMalignant": False,
         "color":       "#F59E0B",
-        "urgency":     "Low — self-care",
+        "urgency":     "Consult Dermatologist",
         "advice": (
-            "Use gentle non-comedogenic cleanser. Avoid picking or squeezing. "
-            "For persistent or severe acne, a dermatologist can prescribe topical/oral treatments."
+            "Avoid known irritants and keep skin moisturized. "
+            "Use fragrance-free, hypoallergenic products. "
+            "A dermatologist can prescribe topical corticosteroids or immunomodulators "
+            "for persistent eczema flare-ups."
         ),
         "emoji":       "🟡",
     },
@@ -195,8 +200,43 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
+def _enhance_image(img: Image.Image) -> Image.Image:
+    """Auto-enhance low-quality images (blurry / dark / low contrast).
+    Helps front-camera and low-light images get better AI accuracy.
+    """
+    import cv2
+    arr = np.array(img)
+    bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+
+    # 1. Fix dark images — if mean brightness < 80, apply gamma correction
+    mean_brightness = bgr.mean()
+    if mean_brightness < 80:
+        gamma = 1.8
+        lut = np.array([min(255, int((i / 255.0) ** (1 / gamma) * 255))
+                        for i in range(256)], dtype=np.uint8)
+        bgr = cv2.LUT(bgr, lut)
+
+    # 2. Enhance contrast using CLAHE on L channel (LAB color space)
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    bgr = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+
+    # 3. Fix blurry images — if Laplacian variance < 100, apply unsharp mask
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+    if blur_score < 100:
+        gaussian = cv2.GaussianBlur(bgr, (0, 0), 3.0)
+        bgr = cv2.addWeighted(bgr, 1.6, gaussian, -0.6, 0)  # unsharp mask
+
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(rgb)
+
+
 def _preprocess(image_bytes: bytes) -> "np.ndarray":
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    img = _enhance_image(img)           # auto-fix blur / dark / low contrast
     img = img.resize(IMG_SIZE, Image.LANCZOS)
     arr = np.array(img, dtype=np.float32) / 255.0
     return np.expand_dims(arr, axis=0)
@@ -293,24 +333,24 @@ def _get_doctor_suggestion(class_name: str, confidence: float,
     elif class_name == "acne":
         if risk_score >= 50:
             return {
-                "stage":         "Severe Acne",
+                "stage":         "Moderate–Severe Eczema",
                 "urgency_level": "LOW",
                 "urgency_emoji": "💊",
                 "doctor_type":   "Dermatologist",
                 "department":    "Dermatology",
-                "message":       "Severe acne detected. A dermatologist can prescribe effective treatments.",
-                "timeline":      "When convenient",
+                "message":       "Significant inflammatory skin condition detected. A dermatologist can prescribe effective topical treatments.",
+                "timeline":      "Within 1–2 weeks",
                 "action":        "Book Dermatologist",
-                "search_query":  "dermatologist near me",
+                "search_query":  "dermatologist eczema specialist near me",
                 "color":         "#2563EB",
             }
         return {
-            "stage":         "Mild Acne",
+            "stage":         "Mild Inflammation",
             "urgency_level": "NONE",
             "urgency_emoji": "✅",
             "doctor_type":   None,
             "department":    None,
-            "message":       "Mild acne detected. Use gentle skincare and avoid picking.",
+            "message":       "Mild skin inflammation detected. Keep skin moisturized and avoid irritants.",
             "timeline":      None,
             "action":        None,
             "search_query":  None,
