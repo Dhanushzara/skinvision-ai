@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, FlatList, Image, TouchableOpacity,
   StyleSheet, RefreshControl, ActivityIndicator, Dimensions,
@@ -23,6 +23,77 @@ const RISK_COLORS: Record<string, [string, string]> = {
 const RISK_BG: Record<string, string> = {
   Low: '#F0FDF4', Medium: '#FFFBEB', High: '#FFF7ED', Critical: '#FEF2F2',
 };
+
+function relativeDate(dateStr?: string): string {
+  if (!dateStr) return '';
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 7)   return `${diff} days ago`;
+  if (diff < 14)  return '1 week ago';
+  if (diff < 30)  return `${Math.floor(diff / 7)} weeks ago`;
+  if (diff < 60)  return '1 month ago';
+  return `${Math.floor(diff / 30)} months ago`;
+}
+
+const RISK_RANK: Record<string, number> = { Low: 0, Medium: 1, High: 2, Critical: 3 };
+
+function SkinProgressionBar({ scans }: { scans: ScanResult[] }) {
+  if (scans.length < 2) return null;
+  // Show last 5 scans as dots on a timeline
+  const recent = [...scans].slice(0, Math.min(5, scans.length)).reverse();
+  const latest = scans[0];
+  const oldest = scans[Math.min(4, scans.length - 1)];
+  const latestRank = RISK_RANK[latest.risk_level ?? 'Low'] ?? 0;
+  const oldestRank = RISK_RANK[oldest.risk_level ?? 'Low'] ?? 0;
+  const trend = latestRank < oldestRank ? 'improving' : latestRank > oldestRank ? 'worsening' : 'stable';
+  const trendIcon = trend === 'improving' ? 'trending-down' : trend === 'worsening' ? 'trending-up' : 'remove';
+  const trendColor = trend === 'improving' ? '#10B981' : trend === 'worsening' ? '#EF4444' : '#64748B';
+
+  return (
+    <View style={pg.wrap}>
+      <View style={pg.titleRow}>
+        <Ionicons name="pulse" size={14} color="#CBD5E1" />
+        <Text style={pg.title}>Skin Progression</Text>
+        <View style={[pg.trendPill, { backgroundColor: trendColor + '22' }]}>
+          <Ionicons name={trendIcon as any} size={12} color={trendColor} />
+          <Text style={[pg.trendTxt, { color: trendColor }]}>
+            {trend === 'improving' ? 'Improving' : trend === 'worsening' ? 'Worsening' : 'Stable'}
+          </Text>
+        </View>
+      </View>
+      <View style={pg.timeline}>
+        {recent.map((sc, i) => {
+          const col = (RISK_COLORS[sc.risk_level ?? 'Low'] ?? ['#94A3B8', '#64748B'])[0];
+          return (
+            <View key={sc.id} style={pg.dotWrap}>
+              <View style={[pg.dot, { backgroundColor: col }]} />
+              {i < recent.length - 1 && (
+                <View style={[pg.line, { backgroundColor: (RISK_COLORS[recent[i + 1].risk_level ?? 'Low'] ?? ['#94A3B8', '#64748B'])[0] + '55' }]} />
+              )}
+              <Text style={pg.dotDate} numberOfLines={1}>{relativeDate(sc.created_at)}</Text>
+              <Text style={[pg.dotRisk, { color: col }]} numberOfLines={1}>{sc.risk_level}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const pg = StyleSheet.create({
+  wrap:      { marginHorizontal: 0, marginBottom: 4, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 14 },
+  titleRow:  { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 12 },
+  title:     { flex: 1, fontSize: 12, fontWeight: '700', color: '#CBD5E1' },
+  trendPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  trendTxt:  { fontSize: 11, fontWeight: '700' },
+  timeline:  { flexDirection: 'row', alignItems: 'flex-start', gap: 0 },
+  dotWrap:   { flex: 1, alignItems: 'center' },
+  dot:       { width: 14, height: 14, borderRadius: 7, borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.3)', marginBottom: 5 },
+  line:      { position: 'absolute', top: 6, left: '50%', right: '-50%', height: 2 },
+  dotDate:   { fontSize: 8, color: '#94A3B8', textAlign: 'center', fontWeight: '600' },
+  dotRisk:   { fontSize: 9, fontWeight: '700', textAlign: 'center', marginTop: 2 },
+});
 
 function EmptyState({ onScan }: { onScan: () => void }) {
   return (
@@ -130,7 +201,10 @@ export default function HistoryScreen() {
               </View>
             ) : null}
             <Text style={s.dateTxt}>
-              {item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+              {relativeDate(item.created_at)}
+            </Text>
+            <Text style={[s.dateTxt, { color: '#64748B' }]}>
+              {item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}
             </Text>
           </View>
         </View>
@@ -167,6 +241,7 @@ export default function HistoryScreen() {
             })}
           </View>
         )}
+        {scans.length > 1 && <SkinProgressionBar scans={scans} />}
       </LinearGradient>
 
       {isLoading ? (

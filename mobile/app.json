@@ -8,15 +8,6 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "com.skinvision.ai",
-      "infoPlist": {
-        "NSCameraUsageDescription": "SkinVision AI needs camera access to scan your skin.",
-        "NSPhotoLibraryUsageDescription": "SkinVision AI needs photo access to analyze your skin photos.",
-        "NSPhotoLibraryAddUsageDescription": "SkinVision AI needs to save scan results."
-      }
-    },
     "icon": "./assets/icon.png",
     "android": {
       "adaptiveIcon": {
@@ -27,9 +18,24 @@
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "package": "com.skinvision.ai"
+      "package": "com.skinvision.ai",
+      "usesCleartextTraffic": true
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.skinvision.ai",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SkinVision AI needs camera access to scan your skin.",
+        "NSPhotoLibraryUsageDescription": "SkinVision AI needs photo access to analyze your skin photos.",
+        "NSPhotoLibraryAddUsageDescription": "SkinVision AI needs to save scan results.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "plugins": [
       "expo-router",
