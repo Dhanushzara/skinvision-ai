@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -45,6 +46,21 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
     except Exception:
         pass
+
+# ── Auto-install missing deps ───────────────────────────────────────────────
+def _ensure(package: str, import_name: str | None = None) -> None:
+    """Install a package if it's not already importable."""
+    mod = import_name or package
+    try:
+        __import__(mod)
+    except ImportError:
+        print(f"[setup] Installing {package}...")
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "-q", package]
+        )
+
+_ensure("scipy")
+_ensure("scikit-learn", "sklearn")
 
 # ── Config ─────────────────────────────────────────────────────────────────
 DATA_DIR          = Path("data/train")

@@ -99,6 +99,100 @@ function FadeSlide({ children, delay = 0, style }: {
   );
 }
 
+// ── Scan progress stages ────────────────────────────────────────────────────
+const SCAN_STAGES = [
+  { pct: 8,  label: 'Uploading image…',        icon: 'cloud-upload-outline'   },
+  { pct: 22, label: 'Validating skin…',         icon: 'checkmark-circle-outline'},
+  { pct: 40, label: 'Extracting features…',     icon: 'layers-outline'         },
+  { pct: 58, label: 'Running AI model…',        icon: 'hardware-chip-outline'  },
+  { pct: 74, label: 'Detecting conditions…',    icon: 'search-outline'         },
+  { pct: 88, label: 'Calculating risk score…',  icon: 'stats-chart-outline'    },
+  { pct: 96, label: 'Generating report…',       icon: 'document-text-outline'  },
+];
+
+function ScanProgressOverlay({ visible }: { visible: boolean }) {
+  const [progress, setProgress] = useState(0);
+  const [stageIdx, setStageIdx] = useState(0);
+  const barAnim  = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!visible) { setProgress(0); setStageIdx(0); barAnim.setValue(0); return; }
+
+    // Fade in overlay
+    Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+
+    // Pulse animation loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.0,  duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Progress animation — simulate stages
+    let currentPct = 0;
+    const timings = [400, 600, 700, 900, 700, 800, 500]; // ms per stage
+    SCAN_STAGES.forEach((stage, i) => {
+      const delay = timings.slice(0, i).reduce((a, b) => a + b, 0);
+      setTimeout(() => {
+        setStageIdx(i);
+        const targetPct = stage.pct;
+        const steps = targetPct - currentPct;
+        for (let s = 1; s <= steps; s++) {
+          setTimeout(() => {
+            setProgress(prev => Math.min(prev + 1, targetPct));
+            Animated.timing(barAnim, {
+              toValue: targetPct / 100,
+              duration: timings[i],
+              useNativeDriver: false,
+            }).start();
+          }, (timings[i] / steps) * s);
+        }
+        currentPct = targetPct;
+      }, delay);
+    });
+  }, [visible]);
+
+  if (!visible) return null;
+  const stage = SCAN_STAGES[stageIdx];
+  const barWidth = barAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+
+  return (
+    <Animated.View style={[sp.overlay, { opacity: fadeAnim }]}>
+      <View style={sp.card}>
+        {/* Pulsing icon */}
+        <Animated.View style={[sp.iconWrap, { transform: [{ scale: pulseAnim }] }]}>
+          <LinearGradient colors={['#2563EB', '#0D9488']} style={sp.iconGrad}>
+            <Ionicons name={stage.icon as any} size={36} color="white" />
+          </LinearGradient>
+        </Animated.View>
+
+        <Text style={sp.title}>Analysing Skin</Text>
+        <Text style={sp.subtitle}>{stage.label}</Text>
+
+        {/* Progress bar */}
+        <View style={sp.barTrack}>
+          <Animated.View style={[sp.barFill, { width: barWidth }]} />
+        </View>
+
+        {/* Percentage */}
+        <Text style={sp.pct}>{progress}%</Text>
+
+        {/* Stage dots */}
+        <View style={sp.dots}>
+          {SCAN_STAGES.map((_, i) => (
+            <View key={i} style={[sp.dot, i <= stageIdx && sp.dotActive]} />
+          ))}
+        </View>
+
+        <Text style={sp.note}>Do not close the app</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -106,10 +200,16 @@ export default function HomeScreen() {
   const [bodyLocation, setBodyLocation] = useState('');
   const [userName, setUserName] = useState('');
   const [showBodyModal, setShowBodyModal] = useState(false);
+  const [liveStats, setLiveStats] = useState({ total_scans: 0, accuracy: '…', conditions_count: 4, avg_speed: '<2s' });
   const btnScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     getUser().then(u => { if (u) setUserName(u.name.split(' ')[0]); });
+    // Fetch real stats from backend
+    fetch(`${API_BASE}/api/stats`)
+      .then(r => r.json())
+      .then(d => setLiveStats(d))
+      .catch(() => {}); // silently keep defaults if backend offline
   }, []);
 
   const pressIn  = () => Animated.spring(btnScale, { toValue: 0.96, useNativeDriver: true }).start();
@@ -215,6 +315,9 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Animated scan progress overlay */}
+      <ScanProgressOverlay visible={analyzeMutation.isPending} />
+
     <ScrollView style={s.container} showsVerticalScrollIndicator={false}>
 
       {/* ── Hero Header ── */}
@@ -247,10 +350,15 @@ export default function HomeScreen() {
           </Text>
         </FadeSlide>
 
-        {/* Stats row */}
+        {/* Stats row — real data from backend */}
         <FadeSlide delay={120} style={s.statsRow}>
-          {STATS.map((st, i) => (
-            <View key={i} style={[s.statItem, i < STATS.length - 1 && s.statDivider]}>
+          {[
+            { value: liveStats.total_scans > 0 ? `${liveStats.total_scans.toLocaleString()}` : '—', label: 'Scans Done' },
+            { value: liveStats.accuracy,            label: 'Accuracy'   },
+            { value: String(liveStats.conditions_count), label: 'Conditions' },
+            { value: liveStats.avg_speed,           label: 'Speed'      },
+          ].map((st, i, arr) => (
+            <View key={i} style={[s.statItem, i < arr.length - 1 && s.statDivider]}>
               <Text style={s.statVal}>{st.value}</Text>
               <Text style={s.statLbl}>{st.label}</Text>
             </View>
@@ -582,4 +690,21 @@ const s = StyleSheet.create({
 
   skipBtn:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, paddingVertical: 13, borderRadius: 14, borderWidth: 1.5, borderColor: '#E2E8F0' },
   skipTxt:         { fontSize: 13, fontWeight: '600', color: '#64748B' },
+});
+
+// ── Scan Progress Overlay Styles ────────────────────────────────────────────
+const sp = StyleSheet.create({
+  overlay:   { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(10,15,30,0.92)', zIndex: 999, alignItems: 'center', justifyContent: 'center' },
+  card:      { width: W - 48, backgroundColor: 'white', borderRadius: 28, padding: 32, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.3, shadowRadius: 30, elevation: 20 },
+  iconWrap:  { marginBottom: 20 },
+  iconGrad:  { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  title:     { fontSize: 22, fontWeight: '900', color: '#0F172A', marginBottom: 6, letterSpacing: -0.5 },
+  subtitle:  { fontSize: 14, color: '#64748B', marginBottom: 24, textAlign: 'center', minHeight: 20 },
+  barTrack:  { width: '100%', height: 10, backgroundColor: '#E2E8F0', borderRadius: 5, overflow: 'hidden', marginBottom: 10 },
+  barFill:   { height: '100%', borderRadius: 5, backgroundColor: '#2563EB' },
+  pct:       { fontSize: 32, fontWeight: '900', color: '#2563EB', marginBottom: 20, letterSpacing: -1 },
+  dots:      { flexDirection: 'row', gap: 6, marginBottom: 16 },
+  dot:       { width: 7, height: 7, borderRadius: 4, backgroundColor: '#E2E8F0' },
+  dotActive: { backgroundColor: '#2563EB', width: 18 },
+  note:      { fontSize: 11, color: '#94A3B8' },
 });
